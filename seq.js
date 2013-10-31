@@ -1,5 +1,8 @@
 // constructor
 function Seq() {
+    if (!(this instanceof Seq)) {
+     return new Seq();
+    }
     this.steps = [];
 };
 

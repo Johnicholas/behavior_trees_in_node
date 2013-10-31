@@ -1,5 +1,8 @@
 // constructor
 function Par() {
+    if (!(this instanceof Par)) {
+     return new Par();
+    }
     this.lanes = [];
     this.map = {};
 };

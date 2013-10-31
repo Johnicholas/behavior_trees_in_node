@@ -1,5 +1,8 @@
 // constructor
 function Rules() {
+    if (!(this instanceof Rules)) {
+     return new Rules();
+    }
     this.guards = [];
     this.actions = [];
 };

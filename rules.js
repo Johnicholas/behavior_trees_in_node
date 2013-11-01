@@ -77,6 +77,7 @@ Rules.prototype.signal_changed = function () {
     if (this.guards[this.running].get()) {
 	this.actions[this.running].signal_changed();
     } else {
+	this.actions[this.running].stop();
 	for (j = this.running+1; j < this.actions.length; j += 1) {
 	    this.guards[j].start();
 	    if (this.guards[j].get()) {

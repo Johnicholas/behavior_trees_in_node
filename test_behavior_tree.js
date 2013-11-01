@@ -71,11 +71,14 @@ guards generally:
 
 */
 
-var Seq = require('./seq');
-var Par = require('./par');
-var Rules = require('./rules');
+var Seq = require('bSn/seq');
+var Par = require('bSn/par');
+var Rules = require('bSn/rules');
 
 function MockMaker(tester) {
+    if (!(this instanceof MockMaker)) {
+	return new MockMaker(tester);
+    }
     this.tester = tester;
 };
 
@@ -496,7 +499,6 @@ exports.test_rules_handles_done = function (tester) {
 };
 
 exports.test_rules_earlier_rules_can_preempt = function (tester) {
-    console.log('preemption test starting');
     var maker = new MockMaker(tester);
     var to_test = new Rules();
     var first_guard = maker.guard({
@@ -522,7 +524,6 @@ exports.test_rules_earlier_rules_can_preempt = function (tester) {
 };
 
 exports.test_rules_current_guard_can_disqualify = function (tester) {
-    console.log('disqualification test starting');
     var maker = new MockMaker(tester);
     var to_test = new Rules();
     var first_guard = maker.guard({
@@ -546,11 +547,12 @@ exports.test_rules_current_guard_can_disqualify = function (tester) {
 	parent: to_test,
 	expect_handle: true, device: 't_device'
     }));
-    tester.expect(12);
+    tester.expect(13);
     to_test.start(maker.handler({
 	expect_done: true, plan: to_test
     }));
     second_guard.answer = false;
+    second_action.expect_stop = true;
     to_test.signal_changed();
     second_action.expect_handle = true;
     to_test.handle('t_device');

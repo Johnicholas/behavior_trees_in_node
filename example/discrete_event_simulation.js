@@ -12,7 +12,7 @@
 // If you try to buy investment_2 when either of them are awake,
 // you lose your money but don't get the investment.
 
-
+'use strict';
 var Rules = require('bSn/rules');
 var Conjunction = require('bSn/conjunction');
 var Truth = require('bSn/truth');
@@ -22,9 +22,9 @@ var Wait = require('bSn/wait');
 // TODO: class Investment
 
 // globals
-var scylla_awake = true;
+var scylla_awake = false;
 var scylla_subscriptions = 0;
-var charybdis_awake = true;
+var charybdis_awake = false;
 var charybdis_subscriptions = 0;
 var investment_1_owned = false;
 var investment_1_subscriptions = 0;
@@ -105,18 +105,18 @@ var scheduler = {
 	var current;
 	var dt;
 
-	this.queue.sort(function (a, b) { return a.timestamp > b.timestamp; });
+	this.queue.sort(function (a, b) { return a.timestamp < b.timestamp; });
 	while (this.queue.length > 0 && this.now < limit) {
 	    current = this.queue.pop();
 	    dt = current.timestamp - this.now;
 	    // we do continous-time phenomena up to the next event.
 	    if (investment_1_owned) { cash += dt; }
 	    if (investment_2_owned) { cash += dt; }
-	    cash -= Math.min(cash, 0.5 * dt); // overhead
+	    cash -= Math.min(cash, dt); // overhead
 	    // then we do the event itself.
 	    this.now = current.timestamp;
 	    current.run(this);
-	    this.queue.sort(function (a, b) { return a.timestamp > b.timestamp; });
+	    this.queue.sort(function (a, b) { return a.timestamp < b.timestamp; });
 	}
     },
     add: function (event, when) {
@@ -129,7 +129,7 @@ var scheduler = {
 var toggle_scylla = {
     timestamp: geometric(0.8),
     run: function (scheduler) {
-	// console.log('scylla '+(scylla_awake?'goes to sleep':'wakes up'));
+	console.log('scylla '+(scylla_awake?'goes to sleep':'wakes up'));
 	scylla_awake = !scylla_awake;
 	if (scylla_subscriptions > 0) {
 	    strategy.signal_changed();
@@ -142,7 +142,7 @@ scheduler.add(toggle_scylla, geometric(0.8));
 // toggle charybdis is an event where charybdis wakes or goes to sleep
 var toggle_charybdis = {
     run: function (scheduler) {
-	// console.log('charybdis '+(charybdis_awake?'goes to sleep':'wakes up'));
+	console.log('charybdis '+(charybdis_awake?'goes to sleep':'wakes up'));
 	charybdis_awake = !charybdis_awake;
 	if (charybdis_subscriptions > 0) {
 	    strategy.signal_changed();
@@ -152,10 +152,17 @@ var toggle_charybdis = {
 };
 scheduler.add(toggle_charybdis, geometric(0.8));
 
+// investment_1_bought is an event where investment_1 was ordered to be bought
+var investment_1_bought = {
+    run: function (scheduler) {
+	strategy.handle('investment_1');
+    }
+};
+
 // investment_1_decays is an event where investment_1 is lost/destroyed
 var investment_1_decays = {
     run: function (scheduler) {
-	// console.log('investment 1 decays');
+	console.log('investment 1 decays');
 	investment_1_owned = false;
 	if (investment_1_subscriptions > 0) {
 	    strategy.signal_changed();
@@ -163,10 +170,18 @@ var investment_1_decays = {
     }
 };
 
+// investment_2_bought is an event where investment_2 was ordered to be bought
+var investment_2_bought = {
+    run: function (scheduler) {
+	strategy.handle('investment_2');
+    }
+};
+
+
 // investment_2_decays is an event where investment_2 is lost/destroyed
 var investment_2_decays = {
     run: function (scheduler) {
-	// console.log('investment 2 decays');
+	console.log('investment 2 decays');
 	investment_2_owned = false;
 	if (investment_2_subscriptions > 0) {
 	    strategy.signal_changed();
@@ -177,22 +192,23 @@ var investment_2_decays = {
 // buy investment_1 is an executor that just buys investment_1
 var buy_investment_1 = {
     start: function (handler) {
+	this.handler = handler;
 	if (cash > 0) {
 	    cash -= 1;
 	    if (!investment_1_owned) {
-		// console.log('bought investment 1');
+		console.log('bought investment 1');
 		investment_1_owned = true;
-		scheduler.add(investment_1_decays, geometric(0.8));
+		scheduler.add(investment_1_bought, 1);
+		scheduler.add(investment_1_decays, geometric(0.6));
 	    } else {
-		// console.log('WASTED MONEY BUYING INVESTMENT 1 WHILE ALREADY OWNED');
+		console.log('WASTED MONEY BUYING INVESTMENT 1 WHILE ALREADY OWNED');
 	    }
 	} else {
-	    // console.log('tried to buy investment 1 but out of cash');
+	    console.log('tried to buy investment 1 but out of cash');
 	}
-	handler.done(this);
     },
     handle: function (device) {
-	// ignore
+	this.handler.done(this);
     },
     get_devices: function (accum) {
 	// ignore
@@ -210,22 +226,23 @@ var buy_investment_1 = {
 // note that if either scylla or charybdis are awake, they prevent it
 var buy_investment_2 = {
     start: function (handler) {
+	this.handler = handler;
 	if (cash > 0) {
 	    cash -= 1;
 	    if (!scylla_awake && !charybdis_awake && !investment_2_owned) {
-		// console.log('bought investment 2');
+		console.log('bought investment 2');
 		investment_2_owned = true;
-		scheduler.add(investment_2_decays, geometric(0.8));
+		scheduler.add(investment_2_bought, 1);
+		scheduler.add(investment_2_decays, geometric(0.9));
 	    } else {
-		// console.log('WASTED MONEY BUYING INVESTMENT 2 WHEN CANNOT');
+		console.log('WASTED MONEY BUYING INVESTMENT 2 WHEN CANNOT');
 	    }
 	} else {
-	    // console.log('tried to buy investment 1 but out of cash');
+	    console.log('tried to buy investment 2 but out of cash');
 	}
-	handler.done(this);
     },
     handle: function (device) {
-	// ignore
+	this.handler.done(this);
     },
     get_devices: function (accum) {
 	// ignore
@@ -240,8 +257,10 @@ var buy_investment_2 = {
 };
 
 var strategy = new Rules();
-//strategy.add(new Conjunction(new Conjunction(scylla_asleep, charybdis_asleep), 
-//			     investment_2_not_owned), buy_investment_2);
+strategy.add(new Conjunction(new Conjunction(scylla_asleep, charybdis_asleep), 
+			     investment_2_not_owned), buy_investment_2);
+//strategy.add(new Conjunction(scylla_asleep, investment_2_not_owned),
+//	     buy_investment_2);
 strategy.add(investment_1_not_owned, buy_investment_1);
 strategy.add(new Truth(), new Wait());
 
@@ -253,7 +272,6 @@ var loop = {
 };
 strategy.start(loop);
 scheduler.run(1000);
-if (cash < 250) {
-    console.log('cash is ' + cash);
-}
+console.log('cash is ' + cash);
+
 

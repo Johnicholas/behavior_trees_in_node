@@ -70,6 +70,7 @@ Rules.prototype.signal_changed = function () {
 	    for (j = this.running; j > i; j -= 1) {
 		this.guards[j].stop();
 	    }
+	    this.running = i; // WAS BUG NEED TO TEST
 	    this.actions[i].start(this);
 	    return;
 	}
